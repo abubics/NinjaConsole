@@ -9,6 +9,7 @@ import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.IOException;
@@ -24,15 +25,13 @@ import javax.swing.JTextPane;
 import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
 
-import javax.swing.JFrame;
-
 public class NinjaConsole extends JPanel implements
     LogConstants, ActionListener, Runnable, ScrollPaneConstants
 {
     private static final Color [] FontColours =
     {
-        null, //new Color(0.0f, 0.0f, 0.0f), // Style_Output
-        new Color(0.0f, 0.0f, 0.5f), // Style_Input
+        null,                        // Style_Output
+        new Color(0.0f, 0.2f, 0.8f), // Style_Input
         new Color(0.5f, 0.0f, 0.0f), // Style_Error
         new Color(0.0f, 0.5f, 0.0f), // Style_System
         new Color(0.0f, 0.5f, 0.5f), // Style_Interactive
@@ -58,7 +57,7 @@ public class NinjaConsole extends JPanel implements
         initComponents();
         initStyles();
 
-        log(Style_System, "NinjaConsole v0.1");
+        log(Style_System, "NinjaConsole v0.1\n");
     }
 
     private void initComponents()
@@ -126,14 +125,16 @@ public class NinjaConsole extends JPanel implements
         try
         {
             StyledDocument doc = m_textPane.getStyledDocument();
-            Style s = m_styles[style];
-            doc.insertString(doc.getLength(), message, s);
-            doc.insertString(doc.getLength(), "\n", s);
+            doc.insertString(doc.getLength(), message, m_styles[style]);
         }
         catch (BadLocationException e)
         {
             System.err.println(e);
         }
+    }
+    private void log(int style, char c)
+    {
+        log(style, String.valueOf(c));
     }
 
     public void startProcess(String workingDir, String command)
@@ -146,13 +147,14 @@ public class NinjaConsole extends JPanel implements
         catch (IOException e)
         {
             log(Style_Error, e.toString());
+            log(Style_Error, "\n");
         }
     }
     private void setProcess(Process p)
     {
         if (m_logger != null && m_logger.isAlive())
         {
-            log(Style_Error, "Cannot orphan current process.");
+            log(Style_Error, "Cannot orphan current process.\n");
             return;
         }
 
@@ -167,8 +169,8 @@ public class NinjaConsole extends JPanel implements
         else
         {
             m_input = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
-            m_output = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            m_error = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+            m_output = p.getInputStream();
+            m_error = p.getErrorStream();
             m_logger = new Thread(this);
             m_logger.start();
         }
@@ -182,23 +184,10 @@ public class NinjaConsole extends JPanel implements
     {
         while (m_output != null && m_error != null && m_logger != null)
         {
-            try
-            {
-                while (m_output.ready())
-                {
-                    log(Style_Output, m_output.readLine());
-                }
-            }
-            catch (IOException e) { System.err.println(e); }
-
-            try
-            {
-                while (m_error.ready())
-                {
-                    log(Style_Error, m_error.readLine());
-                }
-            }
-            catch (IOException e) { System.err.println(e); }
+            logAvailableBytes(m_output, Style_Output);
+            Thread.yield();
+            logAvailableBytes(m_error, Style_Error);
+            Thread.yield();
 
             try
             {
@@ -212,13 +201,28 @@ public class NinjaConsole extends JPanel implements
 
         try
         {
-            log(Style_System, "Process exited (" + m_process.exitValue() + ").");
+            log(Style_System, "Process exited (" + m_process.exitValue() + ").\n");
             setProcess(null);
         }
         catch (IllegalThreadStateException e)
         {
-            log(Style_Error, "Logger terminated with process still running.");
+            log(Style_Error, "Logger terminated with process still running.\n");
         }
+    }
+    private static final byte [] s_tempBytes = new byte[128];
+    private void logAvailableBytes(InputStream in, int style)
+    {
+        try
+        {
+            int available = in.available();
+            int len;
+            while (available > 0)
+            {
+                len = in.read(s_tempBytes);
+                log(style, new String(s_tempBytes, 0, len));
+            }
+        }
+        catch (IOException e) { System.err.println(e); }
     }
 
     public void actionPerformed(ActionEvent event)
@@ -233,7 +237,7 @@ public class NinjaConsole extends JPanel implements
             catch (IllegalThreadStateException e) { }
         }
 
-        String command = m_textField.getText();
+        String command = m_textField.getText() + "\n";
         m_textField.setText("");
 
         if (m_input != null && m_process != null)
@@ -242,39 +246,18 @@ public class NinjaConsole extends JPanel implements
             try
             {
                 m_input.write(command, 0, command.length());
-                m_input.newLine();
+                m_input.flush();
             }
             catch (IOException e) { }
         }
         else if (m_interactive)
         {
             log(Style_Interactive, command);
-            startProcess(".", command);
+            startProcess(".", command.trim());
         }
         else
         {
             log(Style_Error, command);
         }
-    }
-
-    //
-    // Temporary Hook
-    //
-
-    public static void main(String [] args)
-    {
-        JFrame window = new JFrame();
-        NinjaConsole console = new NinjaConsole();
-        console.setInteractive(true);
-        window.setContentPane(console);
-        window.setSize(640, 480);
-        window.setLocation(640, 480);
-        window.setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
-        window.setTitle("NinjaConsole");
-        window.setVisible(true);
-
-        String workingDir = "/Users/abubics/Development/git_sandbox_mvpss/devices_ember/em35x-ezsp/build/smartmeter";
-        String command = "./smartmeter -p /dev/cu.SLAB_USBtoUART -o 0";
-        console.startProcess(workingDir, command);
     }
 }
