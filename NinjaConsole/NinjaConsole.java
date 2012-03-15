@@ -17,6 +17,8 @@ import javax.swing.text.Style;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
@@ -39,6 +41,10 @@ public class NinjaConsole extends JPanel implements
     private JScrollPane m_scrollPane;
     private JTextPane m_textPane;
     private JTextField m_textField;
+    private JCheckBox m_wrapBox;
+    private JCheckBox m_scrollBox;
+    private JButton m_clearCommandButton;
+    private JButton m_clearScrollbackButton;
 
     private Style [] m_styles;
 
@@ -49,6 +55,7 @@ public class NinjaConsole extends JPanel implements
     private Thread m_logger;
 
     private boolean m_interactive;
+    private boolean m_autoScroll;
 
     public NinjaConsole()
     {
@@ -69,10 +76,30 @@ public class NinjaConsole extends JPanel implements
 
         m_textField = new JTextField();
         m_textField.addActionListener(this);
+        
+        m_wrapBox = new JCheckBox("Wrap");
+        m_wrapBox.setSelected(getWordWrap());
+        m_scrollBox = new JCheckBox("Scroll");
+        m_scrollBox.setSelected(getWordWrap());
+        m_clearCommandButton = new JButton("Clear");
+        m_clearScrollbackButton = new JButton("Clear All");
+        
+        JPanel commandPanel = new JPanel(new BorderLayout());
+        JPanel boxes = new JPanel();
+        JPanel buttons = new JPanel();
+        
+        boxes.add(m_wrapBox);
+        boxes.add(m_scrollBox);
+        buttons.add(m_clearCommandButton);
+        buttons.add(m_clearScrollbackButton);
+        
+        commandPanel.add(boxes, BorderLayout.WEST);
+        commandPanel.add(buttons, BorderLayout.EAST);
+        commandPanel.add(m_textField, BorderLayout.CENTER);
 
         setLayout(new BorderLayout());
         add(m_scrollPane, BorderLayout.CENTER);
-        add(m_textField, BorderLayout.SOUTH);
+        add(commandPanel, BorderLayout.SOUTH);
     }
     private void initStyles()
     {
@@ -103,6 +130,17 @@ public class NinjaConsole extends JPanel implements
     {
         int policy = wrap ? HORIZONTAL_SCROLLBAR_NEVER : HORIZONTAL_SCROLLBAR_AS_NEEDED;
         m_scrollPane.setHorizontalScrollBarPolicy(policy);
+        m_wrapBox.setSelected(wrap);
+    }
+    
+    public boolean getAutoScroll()
+    {
+        return m_autoScroll;
+    }
+    public void setAutoScroll(boolean scroll)
+    {
+        m_autoScroll = scroll;
+        m_scrollBox.setSelected(scroll);
     }
 
     public boolean getInteractive()
